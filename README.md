@@ -1,3 +1,3 @@
-# My Tutor
+# Dinor228.github.io
 
-This is a family learning app.
+My Tutor lives at [/mytutor/](/mytutor/).
