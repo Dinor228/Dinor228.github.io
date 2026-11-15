@@ -1,0 +1,41 @@
+<!-- 备用参考页，刻意未在 index.html 引用（recite-dev 独立版，归口集成版 #/recite，Chief 2026-10-31 裁定留档） -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#fff8ee">
+  <title>背诵口试训练 · My Tutor</title>
+  <link rel="stylesheet" href="css/recite.css">
+</head>
+<body class="rt-body">
+  <div class="rt-shell">
+    <header class="rt-top">
+      <button type="button" class="rt-backbtn" id="rt-back" data-act="back" hidden>← 返回</button>
+      <h1 class="rt-logo">📖 背诵口试训练</h1>
+      <div class="rt-stats" id="rt-stats"></div>
+    </header>
+
+    <main class="rt-main" id="rt-main">
+      <section class="rt-card">
+        <h2 class="rt-piece-title">正在加载…</h2>
+        <p class="rt-ready-hint">如果一直停在这里，请刷新页面重试。</p>
+      </section>
+    </main>
+
+    <footer class="rt-foot">
+      二年级语文 · 背古诗 / 背课文 · 记录只存在这台电脑上 ·
+      <a href="index.html">回主应用</a>
+    </footer>
+  </div>
+
+  <div class="rt-toast" id="rt-toast" hidden></div>
+
+  <!-- 复用已有全局对象：配置 → 本地存储 → 语音；再加载本页题库与逻辑 -->
+  <script src="js/config.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/recite-data.js"></script>
+  <script src="js/recite.js"></script>
+</body>
+</html>
