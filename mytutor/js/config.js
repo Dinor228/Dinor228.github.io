@@ -265,6 +265,11 @@ MT.cfg = {
   /* 2. 第四科：科学（🧪，11-10） */
   cfg.subjects.science = { name: '科学', emoji: '🧪', cls: 'science', desc: '观察 · 动物 · 适应', name_en: 'Science', desc_en: 'Observe · Animals · Adaptations' };
 
+  /* 2b. 第六科：Essay（✍️，11-15 家长批准①＝顶层第六科，ESSAY-MOD-01）。
+   * 数据在 banks-essay.js（MT.ESSAY_BANK，真数据归 Researcher ESSAY-DATA-01）；
+   * 首页/导航英文口径：name_en/desc_en 对孩子；name/desc 仅内部兼容占位，Essay 全程英文 UI。 */
+  cfg.subjects.essay = { name: '写作', emoji: '✍️', cls: 'essay', desc: 'Essay（内部占位·不参与渲染）', name_en: 'Essay', desc_en: 'Writing · L1 & L3' };
+
   /* 3. 期中复习主题卡（pool=midterm） */
   cfg.topics.yuwen = cfg.topics.yuwen.concat([
     { id: 'shengzi', title: '课文生字', emoji: '🈶', brief: '看拼音写词 · 读音 · 形近字', pool: 'midterm',
@@ -371,15 +376,10 @@ MT.cfg = {
       gen: { types: ['sci_plants'] } }
   ];
 
-  /* 4. 考试日程（首页倒计时横幅据此滚动：11-06 → 11-10 → 11-11 → 11-12） */
+  /* 4. 考试日程（MT-CONFIG-01，Chief 11-15 批准：2026-11-06~12 五条全过期已清，横幅随之隐——
+   *    不编造新日期；家长回报新学期日程后另单填回 exams） */
   cfg.midterm = {
-    exams: [
-      { name: '语文口试', subj: 'yuwen', name_en: 'Chinese Oral Exam', date: '2026-11-06', tip: '抽背古诗和课文，先练「背诵闯关」！', tip_en: 'Recite poems and texts — try the Recitation Challenge first!' },
-      { name: '语文笔试', subj: 'yuwen', name_en: 'Chinese Written Exam', date: '2026-11-10', tip: '九大题型：生字、读音、判断、阅读、写话', tip_en: 'Nine question types: characters, sounds, judgment, reading, writing' },
-      { name: '科学', subj: 'science', name_en: 'Science Midterm', date: '2026-11-10', tip: 'U1 科学方法 + U3 动物适应', tip_en: 'U1 Science Methods + U3 Animals' },
-      { name: '英语', subj: 'english', name_en: 'English Midterm', date: '2026-11-11', tip: 'Reading / Spelling / Vocabulary 16 / Grammar', tip_en: 'Reading · Spelling · Vocabulary 16 · Grammar' },
-      { name: '数学', subj: 'math', name_en: 'Math Midterm', date: '2026-11-12', tip: 'U1–U4 + 三位数竖式', tip_en: 'U1–U4 + 3-digit vertical form' }
-    ]
+    exams: []
   };
   /* 5. 英语限时写作（ENG-08，2026-11-06）
    * 依据：英语老师 2026-11-05 给家长的信 —— 期中要求 20 分钟内从构思到成稿写完一篇 personal narrative，

@@ -19,6 +19,8 @@ window.MT = window.MT || {};
       mastery: {},     /* { 'subj|type': { seen, correct, log:[1/0 最近100题] } } */
       wrong: [],       /* 错题条目数组 */
       history: [],     /* 学习记录（最近20条） */
+      bfLog: [],       /* BF 计时训练记录（MATH-BFWB-05）：{d, set, secs, tier, ts} —— 只记用时与档位，零对错 */
+      bfExtraNext: null, /* 一键约明日加练：目标日期字符串 */
       stickers: []     /* 已得贴纸 id */
     };
   }
@@ -72,6 +74,31 @@ window.MT = window.MT || {};
     load: loadState,
 
     save: function () { saveState(loadState()); },
+
+    /* Essay 完成态（ESSAY-MOD-01）：{ unitId: {at} } */
+    essayDoneGet: function () { return loadState().essayDone || {}; },
+    essayDoneSet: function (id) {
+      var s = loadState();
+      s.essayDone = s.essayDone || {};
+      if (s.essayDone[id]) return false;
+      s.essayDone[id] = { at: new Date().toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) };
+      saveState(s);
+      return true;
+    },
+
+    /* BF 计时训练（MATH-BFWB-05）：与星星/掌握度/错题链物理隔离——只记 {d,set,secs,tier,ts}，零对错字段 */
+    bfGetLog: function () { return loadState().bfLog || []; },
+    bfRecord: function (entry) {           /* entry = {d:'YYYY-MM-DD', set:'A'|'B', secs:int, tier:'green'|'yellow'|'orange'} */
+      var s = loadState();
+      s.bfLog = s.bfLog || [];
+      s.bfLog.push({ d: entry.d, set: entry.set, secs: entry.secs, tier: entry.tier,
+        ts: new Date().toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) });
+      if (s.bfLog.length > 120) s.bfLog = s.bfLog.slice(-120);
+      saveState(s);
+      return s.bfLog.length;
+    },
+    bfScheduleExtra: function (dayStr) { var s = loadState(); s.bfExtraNext = dayStr; saveState(s); return dayStr; },
+    bfExtraGet: function () { return loadState().bfExtraNext || null; },
 
     reset: function () {
       try { localStorage.removeItem(KEY); } catch (e) { }

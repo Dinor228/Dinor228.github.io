@@ -149,7 +149,7 @@ window.MT = window.MT || {};
   /* ---------- 主入口 ---------- */
   async function chat(userText, aiAvailable, opts) {
     pushHistory('user', String(userText || ''));
-    if (aiAvailable && typeof fetch === 'function' && !window.MT_OFFLINE_MODE) { /* MT-PAGES-01 静态版零 /api/llm 请求 */
+    if (aiAvailable && typeof fetch === 'function') {
       try {
         /* persona 按科目语言双版：非语文科目（lang:'en'）用英文老师，语文保持中文老师 */
         var isEn = !!(opts && opts.lang === 'en');

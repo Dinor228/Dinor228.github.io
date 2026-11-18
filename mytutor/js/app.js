@@ -423,6 +423,7 @@ window.MT = window.MT || {};
   /* 路由语言：孩子从打开 App 到点开 Chinese 卡（或家长区）之前，看到的每个字都是英文 */
   function routeLang(r) {
     if (r.name === 'parent' || r.name === 'recite') return 'zh';            /* 家长区内部 / 背诵闯关（语文） */
+    if (r.name === 'essay') return 'en';                                      /* ESSAY-MOD-01：英语语境全程英文 */
     if (r.name === 'subject' || r.name === 'preview') return subjectLang(r.a);
     if (r.name === 'setup') return subjectLang((r.a && cfg.subjects && cfg.subjects[r.a]) ? r.a : setupSel.subj);
     return 'en';                                                            /* home / chat / wrongbook / 兜底 */
@@ -504,7 +505,7 @@ window.MT = window.MT || {};
       '<h2 class="view-title">' + esc(s.emoji) + ' ' + esc(title || subjName(subj)) + '</h2>';
   }
 
-  var SUBJ_ORDER = ['yuwen', 'math', 'english', 'science'];
+  var SUBJ_ORDER = ['yuwen', 'math', 'english', 'science', 'essay']; /* Essay＝顶层第六科（家长 11-15 批准①） */
 
   /* 科目名/副标题按当前界面语言取（英文界面下语文显示 Chinese） */
   function subjName(k) {
@@ -572,6 +573,9 @@ window.MT = window.MT || {};
     });
     html += '</div>' +
       '<div style="margin-top:18px"><button class="btn btn-primary btn-big" data-go="#/setup">' + esc(T('quickStart')) + '</button></div>' +
+      (MT.BF_BANK && MT.BF_BANK.sets && MT.BF_BANK.sets.length
+        ? '<div style="margin-top:10px"><button class="btn btn-primary btn-big" data-go="#/bf" style="background:#2e75b6">⏱ Basic Facts <span class="muted" style="color:#dbe9f7">· 2 sets · timed</span></button></div>'
+        : '') +
       ((MT.banks && MT.banks.RECITE && MT.banks.RECITE.length) || (typeof window !== 'undefined' && window.RT && window.RT.data)
         ? '<div style="margin-top:10px"><button class="btn btn-ghost btn-big" data-go="#/recite">' + esc(T('reciteEntry')) + '</button></div>'
         : '');
@@ -727,6 +731,7 @@ window.MT = window.MT || {};
     html += '<label class="opt-label">' + esc(T('subjQ')) + '</label><div class="chip-group">';
     SUBJ_ORDER.forEach(function (k) {
       if (!cfg.subjects || !cfg.subjects[k]) return;
+      if (k === 'essay') return; /* Essay 走 #/essay 自有流程（ESSAY-MOD-01），不进 Practice 题库面板 */
       var s = cfg.subjects[k];
       html += '<button class="chip' + (k === subj ? ' on' : '') + '" data-subj="' + k + '">' + esc(s.emoji || '') + ' ' + esc(subjName(k)) + '</button>';
     });
@@ -2115,7 +2120,6 @@ window.MT = window.MT || {};
     qsa('#backend-chips .chip').forEach(function (c) {
       c.onclick = function () {
         var be = c.getAttribute('data-backend');
-        if (window.MT_OFFLINE_MODE) { toast('静态版无 AI 后端'); return; }
         if (typeof fetch !== 'function') { toast('需在 http:// 下使用'); return; }
         fetch('/api/set_backend', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2128,10 +2132,10 @@ window.MT = window.MT || {};
     });
     var tb = qs('#test-conn');
     if (tb) tb.onclick = function () {
-      if (window.MT_OFFLINE_MODE) { var _o = qs('#test-out'); if (_o) _o.textContent = '静态版无 AI 后端，无需测试连接'; return; }
       if (typeof fetch !== 'function') { toast('需在 http:// 下使用'); return; }
       var out = qs('#test-out');
       out.textContent = '测试中…';
+      if (window.MT_OFFLINE_MODE) { var _o = qs('#test-out'); if (_o) _o.textContent = '静态版无 AI 后端，无需测试连接'; return; }
       fetch('/api/test', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ backend: (aiState.backend === 'none' ? aiState.active : aiState.backend) })
@@ -2145,8 +2149,8 @@ window.MT = window.MT || {};
     };
 
     function setKey(key) {
-      if (window.MT_OFFLINE_MODE) { toast('静态版无 AI 后端，无需密钥'); return; }
       if (typeof fetch !== 'function') { toast('需在 http:// 下使用'); return; }
+      if (window.MT_OFFLINE_MODE) { toast('静态版无 AI 后端，无需密钥'); return; }
       fetch('/api/set_key', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: key })
@@ -2182,6 +2186,33 @@ window.MT = window.MT || {};
         '</span><span>' + h.correct + '/' + h.count + ' 对</span><span>' + Math.round(h.seconds) + ' 秒</span></div>';
     }).join('') : '<p class="muted">还没有记录，去练一组吧！</p>';
 
+    /* Essay 完成记录（ESSAY-MOD-01：家长区可查，口径同学习记录） */
+    try {
+      var eb = MT.ESSAY_BANK || {}, eDone = (MT.store.essayDoneGet && MT.store.essayDoneGet()) || {};
+      var erow = [];
+      ['L1', 'L3'].forEach(function (lv) {
+        (eb[lv] && eb[lv].units || []).forEach(function (u) {
+          if (eDone[u.id]) erow.push('✅ ' + u.id + ' · ' + u.title + '（' + eDone[u.id].at + '）');
+        });
+      });
+      if (erow.length) {
+        var ecard = document.createElement('div'); ecard.className = 'card';
+        ecard.innerHTML = '<h3 style="font-size:22px">✍️ Essay Progress</h3><div class="muted" style="white-space:pre-wrap">' + esc(erow.join('\n')) + '</div>';
+        var histCard = qs('#hist') && qs('#hist').closest('.card');
+        if (histCard && histCard.parentNode) histCard.parentNode.insertBefore(ecard, histCard.nextSibling);
+      }
+    } catch (e) { console.warn('essay-hist', e); }
+
+    /* BF 计时趋势（MATH-BFWB-05 · A1 红线：只有用时与档位，无逐题对错） */
+    try {
+      if ((MT.store.bfGetLog() || []).length) {
+        var bcard = document.createElement('div'); bcard.className = 'card';
+        bcard.innerHTML = bfParentCard().replace(/^<div class="card">/, '').replace(/<\/div>$/, '');
+        var hCard2 = qs('#hist') && qs('#hist').closest('.card');
+        if (hCard2 && hCard2.parentNode) hCard2.parentNode.insertBefore(bcard, hCard2.nextSibling);
+      }
+    } catch (e) { console.warn('bf-hist', e); }
+
     qs('#reset-all').onclick = function () {
       confirmBox('确定要清空全部学习数据吗？', function () {
         confirmBox('再确认一次：星星、错题、记录都会消失！', function () {
@@ -2192,9 +2223,368 @@ window.MT = window.MT || {};
   }
 
   /* ================= 汇总 ================= */
+  /* ================================================================
+   * Essay 模块（ESSAY-MOD-01 · 2026-11-15 家长批准：顶层第六科、L1+L3、四步闭环）
+   * 数据 = MT.ESSAY_BANK（banks-essay.js，真数据归 Researcher ESSAY-DATA-01）
+   * 流程：读范文（role 分段）→ 词组 ≤5 题（答后显 why）→ 引导仿写（checklist＋minWords＋AI 点评，
+   * DGX/tutor 不可达＝checklist 自评＋灰条兜底，不得白屏）→ 过关解锁下一 Unit。
+   * 全英文口径（首页/导航/内容均 en）；完成态 MT.store.essayDone*，家长区可查。
+   * ================================================================ */
+  function essayDoneSet(id) {
+    try {
+      var first = MT.store.essayDoneSet(id);
+      if (first) MT.store.addStars(3);
+      return true;
+    } catch (e) { console.warn('essayDoneSet', e); return false; }
+  }
+  function essayLevel(level) {
+    var bank = MT.ESSAY_BANK || {};
+    var data = bank[level];
+    return (data && Array.isArray(data.units)) ? data.units : [];
+  }
+
+  function vEssayHome() {
+    var done = (MT.store.essayDoneGet && MT.store.essayDoneGet()) || {};
+    function lvCard(lv, tagline) {
+      var units = essayLevel(lv);
+      var n = units.filter(function (u) { return done[u.id]; }).length;
+      return '<button class="subj-card sc-essay" data-go="#/essay/' + lv + '" style="display:block;width:100%;margin:8px 0;text-align:left">' +
+        '<span class="sc-emoji">✍️</span><span class="sc-name">' + lv + '</span>' +
+        '<span class="sc-desc">' + tagline + ' · ' + n + '/' + units.length + ' done</span></button>';
+    }
+    mount(crumbs('#/home', 'Home') +
+      '<div class="card"><h2>✍️ Essay</h2><p class="muted">Read great writing, learn the words, write your own.</p>' +
+      lvCard('L1', 'Narrative writing') + lvCard('L3', 'Persuasive writing') +
+      '</div>');
+    bindGo();
+  }
+
+  function vEssayLevel(r) {
+    var lv = r.a;
+    if (lv !== 'L1' && lv !== 'L3') { go('#/essay'); return; }
+    var units = essayLevel(lv);
+    if (!units.length) {
+      mount(crumbs('#/essay', 'Essay') + '<div class="card"><h2>' + lv + '</h2><p class="muted">Units are on the way — check back soon!</p></div>');
+      return;
+    }
+    var done = (MT.store.essayDoneGet && MT.store.essayDoneGet()) || {};
+    var html = crumbs('#/essay', 'Essay') + '<div class="card"><h2>✍️ ' + lv + '</h2>';
+    for (var i = 0; i < units.length; i++) {
+      var u = units[i], ok = !!done[u.id];
+      var locked = i > 0 && !done[units[i - 1].id];
+      html += '<div class="row" style="margin:6px 0">' +
+        (locked
+          ? '<button class="btn btn-ghost grow" disabled>🔒 ' + esc(u.id) + ' · ' + esc(u.title) + '</button>'
+          : '<button class="btn ' + (ok ? 'btn-ghost' : 'btn-primary') + ' grow" data-go="#/essay/' + lv + '/' + esc(u.id) + '">' +
+            (ok ? '✅ ' : '') + esc(u.id) + ' · ' + esc(u.title) + ' →</button>') +
+        '</div>';
+    }
+    html += '</div>';
+    mount(html);
+    bindGo();
+  }
+
+  function vEssayUnit(r) {
+    var lv = r.a, uid = r.b;
+    var units = essayLevel(lv);
+    var unit = null;
+    units.forEach(function (u) { if (u.id === uid) unit = u; });
+    if (!unit) { go('#/essay/' + lv); return; }
+    var idx = units.indexOf(unit);
+    var done = (MT.store.essayDoneGet && MT.store.essayDoneGet()) || {};
+    if (idx > 0 && !done[units[idx - 1].id]) { go('#/essay/' + lv); return; } /* 过关解锁闸 */
+
+    var ROLE_ICON = { hook: '🎣', intro: '🚪', body: '📚', support: '💪', evidence: '🔍', conclusion: '🏁' };
+    var quizState = { answered: 0, correct: 0 };
+    var essayText = '', aiStateLabel = '';
+
+    var html = crumbs('#/essay/' + lv, lv) +
+      '<div class="card"><h2>' + esc(unit.id) + ' · ' + esc(unit.title) + '</h2><p class="muted">' + esc(String(unit.genre || '')) + '</p></div>';
+
+    html += '<div class="card"><h3>📖 Step 1 · Read the sample</h3><p class="muted">' + esc(unit.sample && unit.sample.title || '') + '</p>';
+    ((unit.sample && unit.sample.paras) || []).forEach(function (p) {
+      html += '<p style="margin:10px 0"><span class="chip" style="pointer-events:none">' + (ROLE_ICON[p.role] || '📄') + ' ' + esc(p.role) + '</span> ' + esc(p.text) + '</p>';
+    });
+    html += '</div>';
+
+    html += '<div class="card"><h3>📝 Step 2 · Word quiz (' + Math.min((unit.quiz || []).length, 5) + ')</h3><div id="ez-body"></div><div id="ez-sum" class="muted"></div></div>';
+
+    var cl = ((unit.guided && unit.guided.checklist) || []).map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('');
+    html += '<div class="card"><h3>✏️ Step 3 · Guided writing</h3>' +
+      '<p>' + esc((unit.guided && unit.guided.prompt) || 'Write your own paragraph.') + '</p>' +
+      '<ul class="muted" style="font-size:13px">' + cl + '</ul>' +
+      '<div class="field"><textarea id="ew-in" rows="6" placeholder="Write your paragraph here…" style="width:100%"></textarea></div>' +
+      '<div class="row"><span class="muted" id="ew-count">0 / ' + ((unit.guided && unit.guided.minWords) || 0) + ' words</span>' +
+      '<button class="btn btn-primary btn-sm" id="ew-submit" style="margin-left:auto">Submit for review</button></div>' +
+      '<div id="ew-ai" class="muted" style="margin-top:10px"></div></div>';
+
+    html += '<div class="card"><h3>🏁 Step 4 · Pass the unit</h3><div id="ez-pass"></div></div>';
+    mount(html, 'essay');
+
+    /* Step 2：quiz ≤5 题，答后显 why */
+    var qz = (unit.quiz || []).slice(0, 5);
+    var ezb = qs('#ez-body');
+    function renderQuiz() {
+      var h = '';
+      qz.forEach(function (q, i) {
+        h += '<div class="card" style="box-shadow:none;border:1px solid #eee;margin:8px 0" id="eq-' + i + '">' +
+          '<p><b>' + (i + 1) + '.</b> ' + esc(q.q) + '</p>';
+        if (q.type === 'choice' && q.options && q.options.length) {
+          q.options.forEach(function (o) {
+            h += '<button class="btn btn-ghost btn-sm eq-opt" data-q="' + i + '" data-o="' + esc(o) + '" style="margin:2px 4px 2px 0">' + esc(o) + '</button>';
+          });
+        } else {
+          h += '<div class="field"><input id="eq-in-' + i + '" placeholder="Type your answer"></div>' +
+            '<button class="btn btn-primary btn-sm eq-fill" data-q="' + i + '">Check</button>';
+        }
+        h += '<div class="muted eq-why" id="eq-why-' + i + '" style="margin-top:6px"></div></div>';
+      });
+      ezb.innerHTML = h;
+      qsa('.eq-opt').forEach(function (b) {
+        b.onclick = function () { answerQuiz(+b.getAttribute('data-q'), b.getAttribute('data-o')); };
+      });
+      qsa('.eq-fill').forEach(function (b) {
+        b.onclick = function () {
+          var i = +b.getAttribute('data-q');
+          answerQuiz(i, (qs('#eq-in-' + i) || {}).value || '');
+        };
+      });
+    }
+    function answerQuiz(i, given) {
+      var q = qz[i]; if (!q || q._done) return;
+      q._done = true; quizState.answered++;
+      var ok = String(given).trim().toLowerCase() === String(q.answer).trim().toLowerCase();
+      if (ok) quizState.correct++;
+      var why = qs('#eq-why-' + i);
+      if (why) { why.textContent = (ok ? '✅ ' : '❌ Correct answer: ' + q.answer + '. ') + (q.why || ''); }
+      qsa('#eq-' + i + ' .eq-opt').forEach(function (b) { b.disabled = true; });
+      if (quizState.answered === qz.length) {
+        var sum = qs('#ez-sum');
+        if (sum) sum.textContent = 'Quiz done: ' + quizState.correct + '/' + qz.length + ' correct.';
+        renderPass();
+      }
+    }
+    renderQuiz();
+
+    /* Step 3：字数实时＋AI 点评（tutorChat→DGX 链路；不可达＝checklist 自评＋灰条，G3 先例） */
+    var ta = qs('#ew-in');
+    function wcount() {
+      var n = (ta.value.trim().match(/\S+/g) || []).length;
+      var el = qs('#ew-count'); if (el) el.textContent = n + ' / ' + ((unit.guided && unit.guided.minWords) || 0) + ' words';
+      return n;
+    }
+    ta.oninput = wcount;
+    qs('#ew-submit').onclick = function () {
+      var need = (unit.guided && unit.guided.minWords) || 0;
+      var n = wcount();
+      if (n < need) { toast('Write at least ' + need + ' words — now you have ' + n + '.'); return; }
+      essayText = ta.value.trim();
+      var out = qs('#ew-ai');
+      out.textContent = 'Reviewing your writing…';
+      var ask = 'Please review this Grade ' + (lv === 'L1' ? '2' : '4') + ' student essay paragraph. ' +
+        'Task: ' + ((unit.guided && unit.guided.prompt) || '') + ' ' +
+        'Score each checklist item with ✓ or ✗ plus one short English sentence. End with ONE top improvement tip. English only.\n\nStudent writing:\n' + essayText;
+      tutorChat(ask, aiState && aiState.ai, { max_tokens: 1200, lang: 'en', fresh: true }).then(function (res) {
+        if (!res || res.src !== 'ai') {
+          aiStateLabel = 'offline';
+          out.innerHTML = '<div class="card" style="box-shadow:none;background:#f3f3f3">🤖 AI review is unavailable right now — please self-check with the checklist above, tick each item you did, and ask a grown-up to read it too.</div>';
+        } else {
+          aiStateLabel = 'ai';
+          out.innerHTML = '<div class="card" style="box-shadow:none;background:#f7fbff">' + esc(res.text) + '</div>';
+        }
+        renderPass();
+      }).catch(function () {
+        aiStateLabel = 'offline';
+        out.innerHTML = '<div class="card" style="box-shadow:none;background:#f3f3f3">🤖 AI review is unavailable right now — please self-check with the checklist above.</div>';
+        renderPass();
+      });
+    };
+
+    /* Step 4：过关（须做完 quiz＋提交写作）→ 存完成态＋星星 */
+    function renderPass() {
+      var box = qs('#ez-pass'); if (!box) return;
+      var ready = quizState.answered === qz.length && !!essayText;
+      if (done[unit.id]) { box.innerHTML = '<p class="muted">✅ Completed. Keep writing to get better!</p>'; return; }
+      box.innerHTML = ready
+        ? '<button class="btn btn-primary" id="ez-pass-btn">Mark unit complete ⭐</button>'
+        : '<p class="muted">Finish the quiz and submit your writing first.</p>';
+      var b = qs('#ez-pass-btn');
+      if (b) b.onclick = function () {
+        if (essayDoneSet(unit.id)) {
+          done[unit.id] = { at: 'now' };
+          toast('Great work! Unit ' + unit.id + ' complete ⭐ +3');
+          setTimeout(function () { go('#/essay/' + lv); }, 600);
+        } else { toast('Could not save progress on this device.'); }
+      };
+    }
+    renderPass();
+  }
+
+  /* ================= BF 计时训练（MATH-BFWB-05）=================
+   * 学校口径（老师 2026-11-17 通知）：每日 2 套 44 题、≤12min 达标、>20min 加练、11 法草稿自查。
+   * 红线（Chief 裁定 + QA checklist-math-bfwb A 区）：
+   *   A1 家长区只呈现用时与档位，零逐题对错；A2 答前 DOM 不含答案；
+   *   A3 与判分链物理隔离——本模块只调 MT.store.bf* 键面，不碰 addStars/mastery/wrong/touchStreak；
+   *   A4 反馈文案零"判分句式"（无 correct/wrong/Right!/Wrong）。揭晓 = 孩子按 "Check myself" 触发，
+   *       且只并列"你的答案 / 答案"两值由孩子自己对照，App 永不裁决对错。 */
+  var bfQ = null;            /* 作答会话：{setId, qs, idx, inputs:[], t0, timerId, elapsed} */
+  var BF_TIER = { green: { c: '#2e9e5b', bg: '#e7f6ec', e: '🟢', label: 'On track (≤ 12 min)' },
+                  yellow: { c: '#c98a00', bg: '#fdf3dd', e: '🟡', label: 'Getting there (12–20 min)' },
+                  orange: { c: '#d9640b', bg: '#fdeae0', e: '🟠', label: 'Time for more practice (> 20 min)' } };
+  function bfTodayStr() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function bfTier(secs) { return secs <= 720 ? 'green' : (secs <= 1200 ? 'yellow' : 'orange'); }
+  function bfDayOfYear() { var d = new Date(); return Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5); }
+  function bfMethodToday() { var b = MT.BF_BANK; return b && b.methods && b.methods.length ? b.methods[bfDayOfYear() % b.methods.length] : null; }
+  function bfDoneToday(setId) { return (MT.store.bfGetLog() || []).some(function (e) { return e.d === bfTodayStr() && e.set === setId; }); }
+  function bfStop() { if (bfQ && bfQ.timerId) { clearInterval(bfQ.timerId); bfQ.timerId = null; } }
+
+  function vBfHome() {
+    var b = MT.BF_BANK;
+    if (!b || !b.sets || !b.sets.length) { mount(crumbs('#/home', 'Home') + '<div class="card"><h2>⏱ Basic Facts</h2><p class="muted">Practice sets are on the way — check back soon!</p></div>'); return; }
+    var log = MT.store.bfGetLog() || [], today = bfTodayStr();
+    var todays = log.filter(function (e) { return e.d === today; });
+    var extra = MT.store.bfExtraGet();
+    var method = bfMethodToday();
+    var html = crumbs('#/home', 'Home') + '<div class="card"><h2>⏱ Basic Facts</h2>' +
+      '<p class="muted">2 sets a day · 22 questions each · 11 minutes is on track.</p>';
+    if (extra === bfTomorrowStr()) html += '<p style="color:#d9640b">📅 Extra practice is on for tomorrow — one more set counts!</p>';
+    else if (!extra && todays.length >= 2 && todays.every(function (e) { return e.tier === 'orange'; })) html += '<p style="color:#d9640b">📅 Today took a little longer — try one extra set tomorrow too!</p>';
+    b.sets.forEach(function (s) {
+      var done = bfDoneToday(s.id);
+      var last = todays.filter(function (e) { return e.set === s.id; }).pop();
+      html += '<div class="row" style="margin:6px 0"><button class="btn ' + (done ? 'btn-ghost' : 'btn-primary') + ' grow" data-go="#/bf/' + s.id + '">' +
+        (done ? '✅ ' : '▶ ') + esc(s.name) + ' · 22 questions' + (last ? ' · ⏱ ' + bfFmtSecs(last.secs) + ' ' + BF_TIER[last.tier].e : '') + ' →</button></div>';
+    });
+    html += '<button class="btn btn-ghost" data-go="#/bf/methods" style="margin-top:8px;width:100%">🧮 11 checking strategies</button>';
+    if (method) html += '<p class="muted" style="margin-top:8px">✏️ Today on scratch paper: <b>' + esc(method) + '</b></p>';
+    html += '</div>';
+    mount(html); bindGo();
+  }
+
+  function bfTomorrowStr() { var d = new Date(Date.now() + 864e5); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+  function bfFmtSecs(s) { s = Math.round(s); var m = Math.floor(s / 60); return m > 0 ? m + 'm ' + String(s % 60).padStart(2, '0') + 's' : s + 's'; }
+
+  function vBfMethods() {
+    var b = MT.BF_BANK || {};
+    var ms = b.methods || [];
+    var html = crumbs('#/bf', 'Basic Facts') + '<div class="card"><h2>🧮 11 ways to check your work</h2>' +
+      '<p class="muted">2–3 days a week, show your thinking on scratch paper.</p>';
+    ms.forEach(function (m, i) { html += '<div class="row" style="margin:7px 0;padding:8px 10px;background:#f4f6fb;border-radius:10px"><b style="margin-right:8px">' + (i + 1) + '.</b><span>' + esc(m) + '</span></div>'; });
+    html += '</div>';
+    mount(html); bindGo();
+  }
+
+  function vBfSet(r) {
+    var setId = (r.a || 'A').toUpperCase();
+    var b = MT.BF_BANK;
+    var set = null;
+    if (b) b.sets.forEach(function (s) { if (s.id === setId) set = s; });
+    if (!set) { go('#/bf'); return; }
+    bfStop();
+    bfQ = { setId: setId, qs: set.qs, idx: 0, inputs: [], t0: Date.now(), timerId: null, elapsed: 0 };
+    var html = crumbs('#/bf', 'Basic Facts') +
+      '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<h2>⏱ ' + esc(set.name) + '</h2><span class="w-timer" id="bf-timer">⏱ 0:00</span></div>' +
+      '<div id="bf-body"></div></div>';
+    mount(html);
+    bfQ.timerId = setInterval(bfTick, 1000);
+    bfRenderQ();
+  }
+
+  function bfTick() {
+    var el = qs('#bf-timer'); if (!el || !bfQ) { bfStop(); return; }
+    bfQ.elapsed = (Date.now() - bfQ.t0) / 1000;
+    var s = Math.round(bfQ.elapsed), m = Math.floor(s / 60);
+    el.textContent = '⏱ ' + m + ':' + String(s % 60).padStart(2, '0');
+    el.className = 'w-timer' + (s > 720 ? ' warn' : '') + (s > 1200 ? ' over' : '');
+  }
+
+  function bfRenderQ() {
+    var body = qs('#bf-body'); if (!body || !bfQ) return;
+    var q = bfQ.qs[bfQ.idx];
+    body.innerHTML = '<div class="muted">Question ' + (bfQ.idx + 1) + ' of ' + bfQ.qs.length + '</div>' +
+      '<div class="q-text center" style="font-size:34px;margin:14px 0">' + esc(q.text) + '</div>' +
+      '<div class="type-row"><input class="type-input" id="bf-in" type="number" inputmode="numeric" placeholder="?" autocomplete="off">' +
+      '<button class="btn btn-primary" id="bf-sub">Done thinking ✓</button></div>';
+    var inp = qs('#bf-in'); inp.focus();
+    var submit = function () { bfQ.inputs[bfQ.idx] = (qs('#bf-in').value || '').trim(); bfRenderCheck(); };
+    qs('#bf-sub').addEventListener('click', submit);
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+  }
+
+  function bfRenderCheck() {   /* 验算引导卡：答前/未触发揭晓 → DOM 无答案（A2） */
+    var body = qs('#bf-body'); if (!body || !bfQ) return;
+    var q = bfQ.qs[bfQ.idx], mine = bfQ.inputs[bfQ.idx] || '—';
+    body.innerHTML = '<div class="q-text center" style="font-size:30px;margin:10px 0">' + esc(q.text) + '</div>' +
+      '<div class="card" style="background:#f4f6fb;box-shadow:none;margin:8px 0">' +
+      '<p style="margin:4px 0"><b>Check your work on scratch paper:</b></p>' +
+      '<p style="margin:6px 0;font-size:17px">🧮 ' + esc(q.method) + '</p>' +
+      '<p class="muted" style="margin:6px 0">Your answer: <b>' + esc(mine) + '</b></p></div>' +
+      '<div class="row"><button class="btn btn-ghost grow" id="bf-again">↩ Fix my answer</button>' +
+      '<button class="btn btn-primary grow" id="bf-reveal">Check myself 👀</button></div>';
+    body.insertAdjacentHTML('beforeend', '<div id="bf-extra"></div><div class="row" style="margin-top:10px"><button class="btn btn-ghost grow" id="bf-next" disabled>Next →</button></div>');
+    qs('#bf-again').addEventListener('click', function () { bfRenderQ(); });
+    qs('#bf-next').addEventListener('click', function () { bfNext(); });
+    qs('#bf-reveal').addEventListener('click', function () {   /* 孩子触发的揭晓：并列两值，App 不裁决（A4） */
+      var extra = qs('#bf-extra'); if (!extra) return;
+      extra.innerHTML = '<p style="font-size:20px;margin:6px 0">Your answer: <b>' + esc(bfQ.inputs[bfQ.idx] || '—') + '</b>&nbsp;&nbsp;·&nbsp;&nbsp;Answer: <b>' + esc(String(q.answer)) + '</b></p>' +
+        '<p class="muted">Did you get the same? You be the judge — school checks the rest.</p>';
+      var rb = qs('#bf-reveal'); rb.disabled = true; rb.textContent = 'Checked 👍';
+      var nb = qs('#bf-next'); nb.disabled = false; nb.classList.remove('btn-ghost'); nb.classList.add('btn-primary');
+    });
+  }
+
+  function bfNext() {
+    if (!bfQ) return;
+    if (bfQ.idx + 1 < bfQ.qs.length) { bfQ.idx++; bfRenderQ(); }
+    else bfFinish();
+  }
+
+  function bfFinish() {
+    bfStop();
+    var secs = Math.round((Date.now() - bfQ.t0) / 1000);
+    var tier = bfTier(secs);
+    MT.store.bfRecord({ d: bfTodayStr(), set: bfQ.setId, secs: secs, tier: tier });  /* 只此一处落库：{d,set,secs,tier,ts} */
+    var t = BF_TIER[tier];
+    var body = qs('#bf-body'); if (!body) return;
+    body.innerHTML = '<div style="text-align:center;margin:14px 0">' +
+      '<div style="font-size:22px;margin:8px 0">Set ' + esc(bfQ.setId) + ' finished 🎉</div>' +
+      '<div style="font-size:40px;margin:6px 0">⏱ ' + bfFmtSecs(secs) + '</div>' +
+      '<div style="display:inline-block;padding:6px 14px;border-radius:16px;color:#fff;background:' + t.c + '">' + t.e + ' ' + esc(t.label) + '</div>' +
+      '<p class="muted" style="margin-top:10px">Time and streak are saved for grown-ups.</p></div>' +
+      (tier === 'orange'
+        ? '<button class="btn btn-primary grow" id="bf-extra-btn" style="width:100%">📅 Schedule extra practice tomorrow</button>'
+        : '') +
+      '<button class="btn btn-ghost" id="bf-back" style="width:100%;margin-top:8px">Back to sets</button>';
+    var eb = qs('#bf-extra-btn');
+    if (eb) eb.addEventListener('click', function () { MT.store.bfScheduleExtra(bfTomorrowStr()); eb.disabled = true; eb.textContent = 'Extra practice for tomorrow ✓'; });
+    qs('#bf-back').addEventListener('click', function () { bfQ = null; go('#/bf'); });
+  }
+
+  /* 家长区 BF 趋势卡（A1）：只有日期/套号/用时/档位——无逐题对错、无批改提示 */
+  function bfParentCard() {
+    var log = (MT.store.bfGetLog() || []).slice(-14).reverse();
+    var html = '<div class="card"><h3 style="font-size:22px">⏱ 计算熟练度（Basic Facts）</h3>';
+    if (!log.length) return html + '<p class="muted">还没有记录——孩子在 ⏱ Basic Facts 完成一套后，这里会出现用时与档位。</p></div>';
+    var lastTier = log[0].tier;
+    html += '<table class="tbl" style="width:100%"><tr><th style="text-align:left">日期</th><th>套</th><th>用时</th><th>档位</th></tr>';
+    log.forEach(function (e) {
+      html += '<tr><td>' + esc(e.d) + '</td><td>' + esc(e.set) + '</td><td>' + bfFmtSecs(e.secs) + '</td><td>' + BF_TIER[e.tier].e + ' ' + esc(e.tier) + '</td></tr>';
+    });
+    html += '</table>';
+    var prev = log[1] && log[1].tier;
+    if (prev && prev !== lastTier) html += '<p class="muted">最近档位：' + BF_TIER[prev].e + ' → ' + BF_TIER[lastTier].e + '</p>';
+    var extra = MT.store.bfExtraGet();
+    if (extra) html += '<p class="muted">📅 已约明日加练：' + esc(extra) + '</p>';
+    return html + '</div>';
+  }
+
   var VIEWS = {
     home: vHome, subject: vSubject, preview: function (r) { r.b ? vPreviewDetail(r) : vPreviewList(r); },
-    recite: vRecite, setup: vSetup, quiz: vQuiz, result: vResult, chat: vChat, wrongbook: vWrongbook, parent: vParent
+    recite: vRecite, setup: vSetup, quiz: vQuiz, result: vResult, chat: vChat, wrongbook: vWrongbook, parent: vParent,
+    essay: function (r) { r.a ? (r.b ? vEssayUnit(r) : vEssayLevel(r)) : vEssayHome(); },
+    bf: function (r) { if (!r.a) vBfHome(); else if (r.a === 'methods') vBfMethods(); else vBfSet(r); }
   };
 
   function bindGo() {
@@ -2215,5 +2605,6 @@ window.MT = window.MT || {};
   else boot();
 
   /* 冒烟钩子 */
-  MT.app = { render: render, parseHash: parseHash, startQuiz: startQuiz, _blank: makeBlank, _recitePool: recitePool, _candidates: blankCandidates, _i18n: { subjectLang: subjectLang, speakLangOf: speakLangOf, T: T, lang: function () { return quizLang; }, setLang: function (l) { quizLang = l; } }, _state: function () { return { quiz: quiz, RESULT: RESULT, setupSel: setupSel, chatMsgs: chatMsgs, aiState: aiState, parentUnlocked: parentUnlocked }; } };
+  MT.app = { render: render, parseHash: parseHash, startQuiz: startQuiz, _blank: makeBlank, _recitePool: recitePool, _candidates: blankCandidates, _i18n: { subjectLang: subjectLang, speakLangOf: speakLangOf, T: T, lang: function () { return quizLang; }, setLang: function (l) { quizLang = l; } }, _state: function () { return { quiz: quiz, RESULT: RESULT, setupSel: setupSel, chatMsgs: chatMsgs, aiState: aiState, parentUnlocked: parentUnlocked }; }, _bf: { tier: bfTier, fmt: bfFmtSecs, today: bfTodayStr, tomorrow: bfTomorrowStr, methodToday: bfMethodToday,
+                      dbg: function () { return bfQ ? { setId: bfQ.setId, idx: bfQ.idx, len: bfQ.qs.length, answered: bfQ.inputs.length, elapsed: Math.round(bfQ.elapsed || 0) } : null; } } };
 })();
