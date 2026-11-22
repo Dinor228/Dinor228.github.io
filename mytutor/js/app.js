@@ -576,6 +576,9 @@ window.MT = window.MT || {};
       (MT.BF_BANK && MT.BF_BANK.sets && MT.BF_BANK.sets.length
         ? '<div style="margin-top:10px"><button class="btn btn-primary btn-big" data-go="#/bf" style="background:#2e75b6">⏱ Basic Facts <span class="muted" style="color:#dbe9f7">· 2 sets · timed</span></button></div>'
         : '') +
+      (MT.AMC_BANK && MT.AMC_BANK.qs && MT.AMC_BANK.qs.length
+        ? '<div style="margin-top:10px"><button class="btn btn-primary btn-big" data-go="#/amc" style="background:#7a4bbd">🏆 AMC Challenge <span class="muted" style="color:#e6dcf5">· Pre-A · A · B · C</span></button></div>'
+        : '') +
       ((MT.banks && MT.banks.RECITE && MT.banks.RECITE.length) || (typeof window !== 'undefined' && window.RT && window.RT.data)
         ? '<div style="margin-top:10px"><button class="btn btn-ghost btn-big" data-go="#/recite">' + esc(T('reciteEntry')) + '</button></div>'
         : '');
@@ -2213,6 +2216,17 @@ window.MT = window.MT || {};
       }
     } catch (e) { console.warn('bf-hist', e); }
 
+    /* AMC 进度（MATH-AMC-03 · 同 A1 红线：只有完成档数/题数，无对错） */
+    try {
+      if (Object.keys(MT.store.amcDoneGet() || {}).length) {
+        var acard = document.createElement('div'); acard.className = 'card';
+        acard.innerHTML = amcParentCard().replace(/^<div class="card">/, '').replace(/<\/div>$/, '');
+        var bfCard = Array.prototype.find.call(document.querySelectorAll('.card h3'), function (h) { return /计算熟练度/.test(h.textContent); });
+        var anchor = (bfCard && bfCard.closest('.card')) || (qs('#hist') && qs('#hist').closest('.card'));
+        if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(acard, anchor.nextSibling);
+      }
+    } catch (e) { console.warn('amc-hist', e); }
+
     qs('#reset-all').onclick = function () {
       confirmBox('确定要清空全部学习数据吗？', function () {
         confirmBox('再确认一次：星星、错题、记录都会消失！', function () {
@@ -2580,11 +2594,159 @@ window.MT = window.MT || {};
     return html + '</div>';
   }
 
+  /* ================= AMC 板块（MATH-AMC-03）=================
+   * 家长令（11-19）：2026 AMC 四卷（Pre-A/A/B/C）进 App 作竞赛拓展线，与校内 BF 分开、不占每日任务。
+   * 红线同 BF 家族（Chief 定版）：答前 DOM 零答案；"Check myself" 才揭晓（并列 Your answer / Answer，
+   * App 永不裁决）；不发星不计分；星星/弱点/错题本零写入；家长区只有完成档数/题数。
+   * 题源＝MT.AMC_BANK（banks-amc.js，mock 旗标期）；真题候 MATH-AMC-02 源件换弹夹不改本段。 */
+  var amcQ = null;   /* {level, qs, idx, picked, at} */
+  var AMC_LEVELS = [['prea', 'Pre-A', 'Grades 1–2'], ['a', 'A', 'Grades 3–4'], ['b', 'B', 'Grades 5–6'], ['c', 'C', 'Grades 7–8']];
+  function amcLevelQs(lv) {
+    var b = MT.AMC_BANK;
+    return (b && Array.isArray(b.qs)) ? b.qs.filter(function (q) { return q.level === lv; }) : [];
+  }
+
+  function vAmcHome() {
+    var done = MT.store.amcDoneGet() || {};
+    var html = crumbs('#/home', 'Home') + '<div class="card"><h2>🏆 AMC Challenge</h2>' +
+      '<p class="muted">Australian Mathematics Competition — pick a level, solve, and check your own work.</p>';
+    AMC_LEVELS.forEach(function (l) {
+      var qs = amcLevelQs(l[0]);
+      var n = qs.filter(function (q) { return done[q.id]; }).length;
+      html += '<div class="row" style="margin:6px 0"><button class="btn ' + (qs.length && n === qs.length ? 'btn-ghost' : 'btn-primary') + ' grow" data-go="#/amc/' + l[0] + '">' +
+        (qs.length && n === qs.length ? '✅ ' : '▶ ') + 'Level ' + l[1] + ' <span class="muted">· ' + l[2] + '</span> · ' + n + '/' + qs.length + ' →</button></div>';
+    });
+    html += '</div>';
+    mount(html); bindGo();
+  }
+
+  function vAmcLevel(r) {
+    var lv = r.a;
+    if (!amcLevelQs(lv).length) { go('#/amc'); return; }
+    var done = MT.store.amcDoneGet() || {};
+    var qs = amcLevelQs(lv);
+    var start = 0;
+    for (var i = 0; i < qs.length; i++) { if (!done[qs[i].id]) { start = i; break; } if (i === qs.length - 1) start = 0; } /* 全完成则重玩首题 */
+    amcQ = { level: lv, qs: qs, idx: start, picked: null, at: Date.now() };
+    var html = crumbs('#/amc', 'AMC') + '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<h2>🏆 Level ' + esc((AMC_LEVELS.filter(function (l) { return l[0] === lv; })[0] || [])[1] || lv) + '</h2>' +
+      '<button class="btn btn-ghost btn-sm" data-go="#/amc">Levels</button></div><div id="amc-body"></div></div>';
+    mount(html); bindGo();
+    amcRenderQ();
+  }
+
+  function amcRenderQ() {
+    var body = qs('#amc-body'); if (!body || !amcQ) return;
+    var q = amcQ.qs[amcQ.idx];
+    amcQ.picked = null;
+    var img = (q.img && q.img.length) ? q.img.map(function (p) { return '<img src="' + esc(p) + '" alt="question figure" style="max-width:100%;border-radius:10px;margin:6px 0">'; }).join('') : '';
+    body.innerHTML = '<div class="muted">Question ' + (amcQ.idx + 1) + ' of ' + amcQ.qs.length + '</div>' +
+      '<div class="q-text" style="font-size:22px;margin:10px 0">' + esc(q.en) + '</div>' +
+      '<p class="muted" style="margin:2px 0 8px">' + esc(q.zh) + '</p>' + img;
+    if (q.options) {                                    /* 五选一 */
+      var opts = document.createElement('div');
+      'ABCDE'.split('').forEach(function (L) {
+        var b = document.createElement('button');
+        b.className = 'btn btn-ghost'; b.style.cssText = 'display:block;width:100%;margin:6px 0;text-align:left';
+        b.textContent = '(' + L + ')  ' + q.options[L];
+        b.setAttribute('data-opt', L);
+        opts.appendChild(b);
+      });
+      body.appendChild(opts);
+      body.insertAdjacentHTML('beforeend',
+        '<div class="row" style="margin-top:10px"><button class="btn btn-primary grow" id="amc-sub" disabled>Done thinking ✓</button></div><div id="amc-extra"></div>');
+      qsa('[data-opt]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          qsa('[data-opt]').forEach(function (o) { o.classList.remove('btn-primary'); o.classList.add('btn-ghost'); });
+          b.classList.remove('btn-ghost'); b.classList.add('btn-primary');
+          amcQ.picked = b.getAttribute('data-opt');
+          qs('#amc-sub').disabled = false;
+        });
+      });
+      qs('#amc-sub').addEventListener('click', amcRenderCheck);
+    } else {                                            /* 数字解/图选项题＝自由作答（Chief 11-19 批准降级态，不硬造钮） */
+      body.insertAdjacentHTML('beforeend',
+        '<div class="type-row"><input class="type-input" id="amc-in" type="text" inputmode="numeric" placeholder="?" autocomplete="off">' +
+        '<button class="btn btn-primary" id="amc-sub">Done thinking ✓</button></div><div id="amc-extra"></div>');
+      var inp = qs('#amc-in'); inp.focus();
+      var submit = function () { amcQ.picked = (qs('#amc-in').value || '').trim(); if (!amcQ.picked) { toast('Type your answer first 🙂'); return; } amcRenderCheck(); };
+      qs('#amc-sub').addEventListener('click', submit);
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+    }
+  }
+
+  function amcRenderCheck() {   /* 自查引导：未触发揭晓 → DOM 无答案（A2 同款） */
+    var body = qs('#amc-body'); if (!body || !amcQ || !amcQ.picked) return;
+    var q = amcQ.qs[amcQ.idx], mine = q.options ? ('(' + amcQ.picked + ') ' + q.options[amcQ.picked]) : amcQ.picked;
+    var card = qs('#amc-extra');
+    card.innerHTML = '<div class="card" style="background:#f4f6fb;box-shadow:none;margin:10px 0 4px">' +
+      '<p style="margin:4px 0"><b>Check your work first — redraw the figure, count again, or work backwards.</b></p>' +
+      '<p class="muted" style="margin:6px 0">Your answer: <b>' + esc(mine) + '</b></p></div>' +
+      '<div class="row"><button class="btn btn-ghost grow" id="amc-rethink">↩ Change my answer</button>' +
+      '<button class="btn btn-primary grow" id="amc-reveal">Check myself 👀</button></div>' +
+      '<div id="amc-reveal-box"></div><div class="row" style="margin-top:10px"><button class="btn btn-ghost grow" id="amc-next" disabled>Next →</button></div>';
+    qs('#amc-rethink').addEventListener('click', function () { card.innerHTML = ''; amcQ.picked = null; if (q.options) { qsa('[data-opt]').forEach(function (o) { o.classList.remove('btn-primary'); o.classList.add('btn-ghost'); }); qs('#amc-sub').disabled = true; } else { qs('#amc-in').focus(); } });
+    qs('#amc-reveal').addEventListener('click', function () {
+      var box = qs('#amc-reveal-box'); if (!box || box.getAttribute('data-on')) return;
+      box.setAttribute('data-on', '1');
+      /* Chief 11-19 接口约定：ans 未双源核（留空/非法）→ 不并列 Answer、永不硬造；后补即点亮。
+       * 形态互锁：五选题答案必须是指派字母；数字解答案只配自由作答形态（数字串），串形＝视同未验证 */
+      var shapeOk = q.options ? ('ABCDE'.includes(q.answer) && q.options[q.answer])
+                              : (q.answer != null && q.answer !== '' && !'ABCDE'.includes(String(q.answer)));
+      var ansSide = q.options ? '(' + esc(q.answer) + ') ' + esc(q.options[q.answer]) : esc(String(q.answer));
+      box.innerHTML = shapeOk
+        ? '<p style="font-size:19px;margin:8px 0">Your answer: <b>' + esc(mine) + '</b>&nbsp;·&nbsp;Answer: <b>' + ansSide + '</b></p>' +
+          '<p class="muted">Did you get the same? You be the judge — school checks the rest.</p>'
+        : '<p style="font-size:19px;margin:8px 0">Your answer: <b>' + esc(mine) + '</b></p>' +
+          '<p class="muted">Answer not verified yet — ask your teacher.</p>';
+      qs('#amc-reveal').disabled = true; qs('#amc-reveal').textContent = 'Checked 👍';
+      var nb = qs('#amc-next'); nb.disabled = false; nb.classList.remove('btn-ghost'); nb.classList.add('btn-primary');
+    });
+    qs('#amc-next').addEventListener('click', amcNext);
+  }
+
+  function amcNext() {
+    if (!amcQ) return;
+    MT.store.amcDoneSet(amcQ.qs[amcQ.idx].id);   /* 揭晓过即记完成（只记足迹，零对错） */
+    if (amcQ.idx + 1 < amcQ.qs.length) { amcQ.idx++; amcRenderQ(); }
+    else amcFinish();
+  }
+
+  function amcFinish() {
+    var body = qs('#amc-body'); if (!body) return;
+    var n = amcQ.qs.length;
+    body.innerHTML = '<div style="text-align:center;margin:16px 0">' +
+      '<div style="font-size:22px">Level ' + esc(amcQ.level.toUpperCase()) + ' set done 🎉</div>' +
+      '<div style="font-size:38px;margin:6px 0">🏅 ' + n + ' / ' + n + '</div>' +
+      '<p class="muted">Progress (how many you finished) is saved for grown-ups.</p>' +
+      '<button class="btn btn-primary" id="amc-back" style="margin-top:8px">Back to levels</button></div>';
+    qs('#amc-back').addEventListener('click', function () { amcQ = null; go('#/amc'); });
+  }
+
+  /* 家长区 AMC 段（A1 同款）：只有各档完成题数/总数与最近足迹时间，零逐题对错 */
+  function amcParentCard() {
+    var done = MT.store.amcDoneGet() || {};
+    var ids = Object.keys(done);
+    var html = '<div class="card"><h3 style="font-size:22px">🏆 AMC 挑战进度</h3>';
+    if (!ids.length) return html + '<p class="muted">还没有记录——孩子在 🏆 AMC Challenge 揭晓自查后，这里会出现完成题数。</p></div>';
+    html += '<table class="tbl" style="width:100%"><tr><th style="text-align:left">档位</th><th>完成</th></tr>';
+    AMC_LEVELS.forEach(function (l) {
+      var qsL = amcLevelQs(l[0]);
+      var n = qsL.filter(function (q) { return done[q.id]; }).length;
+      if (qsL.length) html += '<tr><td style="text-align:left">Level ' + esc(l[1]) + '</td><td>' + n + ' / ' + qsL.length + '</td></tr>';
+    });
+    html += '</table>';
+    var lastAt = done[ids[ids.length - 1]] && done[ids[ids.length - 1]].at;
+    if (lastAt) html += '<p class="muted">最近一次：' + esc(lastAt) + '（共 ' + ids.length + ' 题）</p>';
+    return html + '</div>';
+  }
+
   var VIEWS = {
     home: vHome, subject: vSubject, preview: function (r) { r.b ? vPreviewDetail(r) : vPreviewList(r); },
     recite: vRecite, setup: vSetup, quiz: vQuiz, result: vResult, chat: vChat, wrongbook: vWrongbook, parent: vParent,
     essay: function (r) { r.a ? (r.b ? vEssayUnit(r) : vEssayLevel(r)) : vEssayHome(); },
-    bf: function (r) { if (!r.a) vBfHome(); else if (r.a === 'methods') vBfMethods(); else vBfSet(r); }
+    bf: function (r) { if (!r.a) vBfHome(); else if (r.a === 'methods') vBfMethods(); else vBfSet(r); },
+    amc: function (r) { r.a ? vAmcLevel(r) : vAmcHome(); }
   };
 
   function bindGo() {

@@ -100,6 +100,17 @@ window.MT = window.MT || {};
     bfScheduleExtra: function (dayStr) { var s = loadState(); s.bfExtraNext = dayStr; saveState(s); return dayStr; },
     bfExtraGet: function () { return loadState().bfExtraNext || null; },
 
+    /* AMC 板块（MATH-AMC-03）：与判分链物理隔离——只记完成档/题数与时间戳，零对错字段 */
+    amcDoneGet: function () { return loadState().amcDone || {}; },   /* { qid: {at} } 孩子点过 Check myself 的题 */
+    amcDoneSet: function (qid) {
+      var s = loadState();
+      s.amcDone = s.amcDone || {};
+      if (s.amcDone[qid]) return false;
+      s.amcDone[qid] = { at: new Date().toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) };
+      saveState(s);
+      return true;
+    },
+
     reset: function () {
       try { localStorage.removeItem(KEY); } catch (e) { }
     },
