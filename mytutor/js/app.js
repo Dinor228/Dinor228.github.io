@@ -579,6 +579,9 @@ window.MT = window.MT || {};
       (MT.AMC_BANK && MT.AMC_BANK.qs && MT.AMC_BANK.qs.length
         ? '<div style="margin-top:10px"><button class="btn btn-primary btn-big" data-go="#/amc" style="background:#7a4bbd">🏆 AMC Challenge <span class="muted" style="color:#e6dcf5">· Pre-A · A · B · C</span></button></div>'
         : '') +
+      (MT.MAP_BANK && (MT.MAP_BANK.skills || MT.MAP_BANK.words || MT.MAP_BANK.items)
+        ? '<div style="margin-top:10px"><button class="btn btn-primary btn-big" data-go="#/map" style="background:#1f8a70">📖 MAP Reading <span class="muted" style="color:#d9f2ea">· Skills · Words · Practice</span></button></div>'
+        : '') +
       ((MT.banks && MT.banks.RECITE && MT.banks.RECITE.length) || (typeof window !== 'undefined' && window.RT && window.RT.data)
         ? '<div style="margin-top:10px"><button class="btn btn-ghost btn-big" data-go="#/recite">' + esc(T('reciteEntry')) + '</button></div>'
         : '');
@@ -2227,6 +2230,18 @@ window.MT = window.MT || {};
       }
     } catch (e) { console.warn('amc-hist', e); }
 
+    /* MAP Reading 进度（MT-MAP-01 · 同族红线：只有完成度趋势，无逐题对错） */
+    try {
+      var mD = MT.store.mapDoneGet() || {}, mW = MT.store.mapWordsGet() || {}, mS = MT.store.mapSkillsGet() || {};
+      if (Object.keys(mD).length || Object.keys(mW).length || Object.keys(mS).length) {
+        var mcard = document.createElement('div'); mcard.className = 'card';
+        mcard.innerHTML = mapParentCard().replace(/^<div class="card">/, '').replace(/<\/div>$/, '');
+        var amcH = Array.prototype.find.call(document.querySelectorAll('.card h3'), function (h) { return /AMC 挑战进度/.test(h.textContent); });
+        var manch = (amcH && amcH.closest('.card')) || (qs('#hist') && qs('#hist').closest('.card'));
+        if (manch && manch.parentNode) manch.parentNode.insertBefore(mcard, manch.nextSibling);
+      }
+    } catch (e) { console.warn('map-hist', e); }
+
     qs('#reset-all').onclick = function () {
       confirmBox('确定要清空全部学习数据吗？', function () {
         confirmBox('再确认一次：星星、错题、记录都会消失！', function () {
@@ -2741,12 +2756,255 @@ window.MT = window.MT || {};
     return html + '</div>';
   }
 
+  /* ================= MAP Reading（MT-MAP-01 · 家长 11-22 定版三页签） =================
+   * skills＝技巧卡（主件）/ words＝高频词翻卡 / practice＝同技能自编题（组内 ≤5 题）。
+   * 红线：不发星不计分——答前 DOM 零答案，"Check myself" 才揭晓；星星/弱点/错题本零写入；
+   * 家长区只呈现完成度趋势（技巧卡打开数 / 词卡翻过数 / 练习完成题数），零逐题对错。
+   * 内容弹夹口＝MT.MAP_BANK 三数组（skills/words/items），真内容到后 app 零改动。 */
+  var MAP_TABS = [['skills', '🧭 Skills'], ['words', '🔤 Words'], ['practice', '✏️ Practice']];
+  var mapQ = null;   /* { group, qs, idx, picked, at } */
+  /* MT-MAP-04（QA T6b）：自编内容必须对家长可见披露——source==='mock' 即挂样题标签；换真内容 source 变即自动消失 */
+  function mapBadge(src) {
+    if (src === 'mock') return '<span style="background:#fff3d6;color:#8a6100;border-radius:8px;padding:1px 8px;font-size:12px;margin-left:6px;vertical-align:2px">sample · teacher-made</span>';
+    if (src === 'self_authored') return '<span style="background:#e3f4ea;color:#15683c;border-radius:8px;padding:1px 8px;font-size:12px;margin-left:6px;vertical-align:2px">teacher-made</span>';
+    return '';
+  }
+  function mapAnyMock() {
+    var b = MT.MAP_BANK || {};
+    return b.mock === true || (b.skills || []).some(function (s) { return s.source === 'mock'; }) ||
+      (b.items || []).some(function (g) { return g.source === 'mock' || (g.qs || []).some(function (q) { return q.source === 'mock'; }); }) ||
+      (b.words || []).some(function (w) { return typeof w.source === 'string' && w.source.indexOf('mock') === 0; });
+  }
+
+  function mapTabsHtml(cur) {
+    return '<div class="row" style="margin:8px 0">' + MAP_TABS.map(function (t) {
+      return '<button class="btn grow ' + (t[0] === cur ? 'btn-primary' : 'btn-ghost') + '" data-go="#/map/' + t[0] + '">' + t[1] + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function vMapHome() {
+    var b = MT.MAP_BANK || {};
+    var nS = (b.skills || []).length, nW = (b.words || []).length, nI = (b.items || []).length;
+    mount('<div class="card"><h2>📖 MAP Reading</h2>' +
+      '<p class="muted">Learn the skills, grow the word bank, then practise a little — one small set at a time.</p>' +
+      mapTabsHtml('') +
+      '<div class="row" style="margin-top:6px">' +
+      '<button class="btn btn-primary grow" data-go="#/map/skills">🧭 Skills <span class="muted">· ' + nS + ' cards</span></button>' +
+      '<button class="btn btn-primary grow" data-go="#/map/words">🔤 Words <span class="muted">· ' + nW + ' words</span></button>' +
+      '<button class="btn btn-primary grow" data-go="#/map/practice">✏️ Practice <span class="muted">· ' + nI + ' sets</span></button>' +
+      '</div>' + (mapAnyMock() ? '<p class="muted" style="margin-top:10px">Sample set · teacher-made — not real MAP/ReadTheory items. Real content loads in soon.</p>' : '') +
+      '</div>');
+    bindGo();
+  }
+
+  /* ---- Skills：每题型一张技巧卡（考什么/四步解法/常见陷阱/口诀/示范题） ---- */
+  function vMapSkills() {
+    var b = MT.MAP_BANK || {};
+    var list = b.skills || [];
+    var html = '<div class="card">' + crumbs(['#/map', 'MAP Reading']) + '<h2>🧭 Reading Skills</h2>' + mapTabsHtml('skills');
+    if (!list.length) { html += '<p class="muted">No skill cards yet — they grow in with each reading review.</p></div>'; mount(html); bindGo(); return; }
+    list.forEach(function (sk) {
+      MT.store.mapSkillsOpen(sk.id);   /* 只记"打开过"足迹，零对错 */
+      html += '<div class="card" style="border-left:4px solid #1f8a70;margin-top:10px">' +
+        '<h3 style="font-size:20px">' + esc(sk.name) + mapBadge(sk.source) + '</h3>' +
+        '<p>' + esc(sk.ask) + '</p>' +
+        '<b>How to solve (4 steps)</b><ol style="margin:6px 0 6px 20px">' + (sk.steps || []).map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>' +
+        '<b>Watch out</b><ul style="margin:6px 0 6px 20px">' + (sk.traps || []).map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>' +
+        '<p>🗣 <b>' + esc(sk.chant || '') + '</b></p>';
+      if (sk.demo) {   /* 示范题也走"先想后揭"：未点 Check myself 前 DOM 无答案 */
+        html += '<div style="background:#f2f8f5;border-radius:10px;padding:10px;margin-top:6px">' +
+          '<div class="muted">Try one</div><p>' + esc(sk.demo.stem) + '</p>' +
+          '<div class="row" style="flex-wrap:wrap">' + Object.keys(sk.demo.opts || {}).map(function (k) {
+            return '<button class="btn btn-ghost skill-opt" data-skill="' + esc(sk.id) + '" data-opt="' + esc(k) + '" style="margin:3px">' + esc(k) + '. ' + esc(sk.demo.opts[k]) + '</button>';
+          }).join('') + '</div>' +
+          '<div class="row" style="margin-top:8px"><button class="btn btn-primary skill-asked" data-skill="' + esc(sk.id) + '" disabled>Done thinking ✓</button></div>' +
+          '<div id="skill-reveal-' + esc(sk.id) + '"></div></div>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+    mount(html); bindGo();
+    /* 示范题交互：选一个→Done thinking→Check myself 才出思路（不给"正确答案是X"判分句，规格 B③） */
+    qsa('.skill-opt').forEach(function (btn) {
+      btn.onclick = function () {
+        var sid = btn.getAttribute('data-skill');
+        qsa('.skill-opt[data-skill="' + sid + '"]').forEach(function (o) { o.classList.remove('btn-primary'); o.classList.add('btn-ghost'); });
+        btn.classList.remove('btn-ghost'); btn.classList.add('btn-primary');
+        var pk = qs('.skill-asked[data-skill="' + sid + '"]'); if (pk) pk.disabled = false;
+      };
+    });
+    qsa('.skill-asked').forEach(function (btn) {
+      btn.onclick = function () {
+        var sid = btn.getAttribute('data-skill');
+        var box = qs('#skill-reveal-' + sid); if (!box || box.getAttribute('data-on')) return;
+        var sk = (MT.MAP_BANK.skills || []).filter(function (x) { return x.id === sid; })[0]; if (!sk || !sk.demo) return;
+        box.setAttribute('data-on', '1');
+        box.innerHTML = '<p style="margin:8px 0 4px">💭 ' + esc(sk.demo.explain || '') + '</p>' +
+          '<p class="muted">You be the judge — did your pick match the way of thinking?</p>';
+        btn.disabled = true; btn.textContent = 'Checked 👍';
+      };
+    });
+  }
+
+  /* ---- Words：翻卡（正面 word＋例句 / 反面 中文＋词性）；翻到反面＝足迹 ---- */
+  function vMapWords() {
+    var b = MT.MAP_BANK || {};
+    var list = b.words || [];
+    var html = '<div class="card">' + crumbs(['#/map', 'MAP Reading']) + '<h2>🔤 Word Cards</h2>' +
+      '<p class="muted">Tap a card to flip it. Words grow in with every reading review.</p>' + mapTabsHtml('words');
+    if (!list.length) { html += '<p class="muted">No words yet — they grow in with each reading review.</p></div>'; mount(html); bindGo(); return; }
+    html += '<div class="row" style="flex-wrap:wrap">';
+    list.forEach(function (w) {
+      html += '<div class="map-word" data-wid="' + esc(w.id) + '" style="width:calc(50% - 8px);margin:4px;min-height:96px;border:1px solid #d7e8e0;border-radius:12px;padding:10px;cursor:pointer;background:#fff">' +
+        '<div style="font-size:19px"><b>' + esc(w.word) + '</b>' + mapBadge(w.source) + ' <span class="muted">' + esc(w.phonetic || '') + '</span></div>' +
+        '<div class="muted" style="margin-top:4px">' + esc(w.en || '') + '</div>' +
+        '<div class="mw-back" style="display:none;margin-top:6px;color:#1f8a70"><b>' + esc(w.zh || '') + '</b>' +
+        (w.pos ? ' <span class="muted">· ' + esc(w.pos) + '</span>' : '') + '</div></div>';
+    });
+    html += '</div></div>';
+    mount(html); bindGo();
+    qsa('.map-word').forEach(function (el) {
+      el.onclick = function () {
+        var back = el.querySelector('.mw-back'); if (!back) return;
+        var show = back.style.display === 'none';
+        back.style.display = show ? 'block' : 'none';
+        if (show) MT.store.mapWordsFlip(el.getAttribute('data-wid'));   /* 只记翻过，零对错 */
+      };
+    });
+  }
+
+  /* ---- Practice：组内 ≤5 题（不题海口径硬闸）；AMC 同款"先想后揭" ---- */
+  function mapGroups() {
+    var b = MT.MAP_BANK || {};
+    return (b.items || []).filter(function (g) { return g.qs && g.qs.length; });
+  }
+  function vMapPractice() {
+    var html = '<div class="card">' + crumbs('#/map', 'MAP Reading') + '<h2>✏️ Practice Sets</h2>' +
+      '<p class="muted">Small sets — 5 questions at most. No stars, no scores: think, check yourself, move on.</p>' + mapTabsHtml('practice');
+    var gs = mapGroups();
+    if (!gs.length) { html += '<p class="muted">No practice sets yet — they grow in with each reading review.</p></div>'; mount(html); bindGo(); return; }
+    var done = MT.store.mapDoneGet() || {};
+    gs.forEach(function (g) {
+      if (g.qs.length > 5) { console.warn('map group over cap', g.id, g.qs.length); }   /* 组内 ≤5 硬闸：违例显式报红，不静默截断 */
+      var n = g.qs.filter(function (q) { return done[q.id]; }).length;
+      html += '<div class="row" style="margin:6px 0"><button class="btn ' + (n >= g.qs.length ? 'btn-ghost' : 'btn-primary') + ' grow" data-go="#/map/practice/' + esc(g.group || g.id) + '">' +
+        esc(g.title) + mapBadge(g.source) + ' <span class="muted">· ' + esc(g.genre || '') + ' · ' + g.qs.length + ' q</span></button>' +
+        '<span class="muted">' + n + '/' + g.qs.length + '</span></div>';
+    });
+    html += '</div>';
+    mount(html); bindGo();
+  }
+  function vMapSet(gid) {
+    var g = mapGroups().filter(function (x) { return (x.group || x.id) === gid; })[0];
+    if (!g) { go('#/map/practice'); return; }
+    mapQ = { group: g, qs: g.qs, idx: 0, picked: null };
+    var html = '<div class="card">' + crumbs(['#/map/practice', 'Sets']) +
+      '<div style="display:flex;justify-content:space-between;align-items:center"><h2>' + esc(g.title) + mapBadge(g.source) + '</h2>' +
+      '<button class="btn btn-ghost btn-sm" data-go="#/map/practice">Sets</button></div>' +
+      (g.passage ? '<div style="background:#f6f9f7;border-radius:10px;padding:12px;font-size:17px;line-height:1.7;white-space:pre-wrap">' + esc(g.passage) + '</div>' : '') +
+      '<div id="map-body" style="margin-top:10px"></div></div>';
+    mount(html); bindGo();
+    mapRenderQ();
+  }
+  function mapRenderQ() {
+    var body = qs('#map-body'); if (!body || !mapQ) return;
+    var q = mapQ.qs[mapQ.idx];
+    mapQ.picked = null;
+    /* 红线自证点：此 DOM 态零 ans/explain 字样——答案只在 mapAsk 触发的 reveal 里出现 */
+    body.innerHTML = '<div class="muted">Question ' + (mapQ.idx + 1) + ' of ' + mapQ.qs.length + ' · ' + esc(q.skill || '') + '</div>' +
+      '<p style="font-size:18px">' + esc(q.stem) + '</p>' +
+      '<div class="row" style="flex-wrap:wrap">' + Object.keys(q.opts || {}).map(function (k) {
+        return '<button class="btn btn-ghost map-opt" data-opt="' + esc(k) + '" style="margin:3px">' + esc(k) + '. ' + esc(q.opts[k]) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="row" style="margin-top:10px"><button class="btn btn-primary grow" id="map-sub" disabled>Done thinking ✓</button></div><div id="map-extra"></div>';
+    qsa('.map-opt').forEach(function (b) {
+      b.onclick = function () {
+        qsa('.map-opt').forEach(function (o) { o.classList.remove('btn-primary'); o.classList.add('btn-ghost'); });
+        b.classList.remove('btn-ghost'); b.classList.add('btn-primary');
+        mapQ.picked = b.getAttribute('data-opt');
+        qs('#map-sub').disabled = false;
+      };
+    });
+    qs('#map-sub').addEventListener('click', mapAsk);
+  }
+  function mapAsk() {
+    var body = qs('#map-extra'); if (!body || !mapQ || !mapQ.picked) return;
+    var q = mapQ.qs[mapQ.idx];
+    body.innerHTML = '<div class="row"><button class="btn btn-ghost grow" id="map-rethink">↩ Change my answer</button>' +
+      '<button class="btn btn-primary grow" id="map-reveal">Check myself 👀</button></div>' +
+      '<div id="map-reveal-box"></div><div class="row" style="margin-top:10px"><button class="btn btn-ghost grow" id="map-next" disabled>Next →</button></div>';
+    qs('#map-rethink').addEventListener('click', function () {
+      body.innerHTML = ''; mapQ.picked = null;
+      qsa('.map-opt').forEach(function (o) { o.classList.remove('btn-primary'); o.classList.add('btn-ghost'); });
+      qs('#map-sub').disabled = true;
+    });
+    qs('#map-reveal').addEventListener('click', function () {
+      var box = qs('#map-reveal-box'); if (!box || box.getAttribute('data-on')) return;
+      box.setAttribute('data-on', '1');
+      /* 同 AMC 形态互锁：答案必须是指派字母且在选项内，否则视同未验证，永不硬造 */
+      var ok = ('ABCD'.indexOf(q.ans) >= 0) && q.opts && q.opts[q.ans];
+      box.innerHTML = '<p style="font-size:19px;margin:8px 0">Your answer: <b>(' + esc(mapQ.picked) + ') ' + esc((q.opts || {})[mapQ.picked] || '') + '</b>' +
+        (ok ? '&nbsp;·&nbsp;Answer: <b>(' + esc(q.ans) + ') ' + esc(q.opts[q.ans]) + '</b>' : '') + '</p>' +
+        (q.explain ? '<p style="margin:4px 0">💭 ' + esc(q.explain) + '</p>' : '') +
+        (ok ? '<p class="muted">Did you get the same? You be the judge — school checks the rest.</p>'
+            : '<p class="muted">Answer not verified yet — ask your teacher.</p>');
+      qs('#map-reveal').disabled = true; qs('#map-reveal').textContent = 'Checked 👍';
+      var nb = qs('#map-next'); nb.disabled = false; nb.classList.remove('btn-ghost'); nb.classList.add('btn-primary');
+    });
+    qs('#map-next').addEventListener('click', mapNext);
+  }
+  function mapNext() {
+    if (!mapQ) return;
+    MT.store.mapDoneSet(mapQ.qs[mapQ.idx].id);   /* 揭晓过即记完成（只记足迹，零对错） */
+    if (mapQ.idx + 1 < mapQ.qs.length) { mapQ.idx++; mapRenderQ(); }
+    else mapFinish();
+  }
+  function mapFinish() {
+    var body = qs('#map-body'); if (!body) return;
+    var n = mapQ.qs.length;
+    body.innerHTML = '<div style="text-align:center;margin:16px 0">' +
+      '<div style="font-size:22px">Set done 🎉</div>' +
+      '<div style="font-size:38px;margin:6px 0">📗 ' + n + ' / ' + n + '</div>' +
+      '<p class="muted">Progress (how many you finished) is saved for grown-ups.</p>' +
+      '<button class="btn btn-primary" id="map-back" style="margin-top:8px">Back to sets</button></div>';
+    qs('#map-back').addEventListener('click', function () { mapQ = null; go('#/map/practice'); });
+  }
+
+  /* ---- 家长区 MAP 段：只有三行完成度趋势，零逐题对错 ---- */
+  function mapParentCard() {
+    var b = MT.MAP_BANK || {};
+    var d = MT.store.mapDoneGet() || {}, w = MT.store.mapWordsGet() || {}, sk = MT.store.mapSkillsGet() || {};
+    var ids = Object.keys(d);
+    var html = '<div class="card"><h3 style="font-size:22px">📖 MAP Reading 进度</h3>' +
+      (mapAnyMock()
+        ? '<p class="muted" style="color:#8a6100">当前题库为示例/自编内容（sample · teacher-made），非 MAP/ReadTheory 真题。</p>'
+        : '<p class="muted">当前题库为团队自编内容（teacher-made），非 MAP/ReadTheory 真题。</p>');
+    if (!ids.length && !Object.keys(w).length && !Object.keys(sk).length)
+      return html + '<p class="muted">还没有记录——孩子在 📖 MAP Reading 打开技巧卡、翻词卡、练习自查后，这里会出现完成度。</p></div>';
+    var qsAll = []; (b.items || []).forEach(function (g) { (g.qs || []).forEach(function (q) { qsAll.push(q.id); }); });
+    var nQ = qsAll.filter(function (id) { return d[id]; }).length;
+    html += '<table class="tbl" style="width:100%"><tr><th style="text-align:left">维度</th><th>完成</th></tr>' +
+      '<tr><td style="text-align:left">技巧卡</td><td>' + Object.keys(sk).length + ' / ' + (b.skills || []).length + '</td></tr>' +
+      '<tr><td style="text-align:left">高频词卡（翻过）</td><td>' + Object.keys(w).length + ' / ' + (b.words || []).length + '</td></tr>' +
+      '<tr><td style="text-align:left">练习（自查完成）</td><td>' + nQ + ' / ' + qsAll.length + '</td></tr></table>';
+    var lastAt = d[ids[ids.length - 1]] && d[ids[ids.length - 1]].at;
+    if (lastAt) html += '<p class="muted">最近一次：' + esc(lastAt) + '</p>';
+    return html + '</div>';
+  }
+
   var VIEWS = {
     home: vHome, subject: vSubject, preview: function (r) { r.b ? vPreviewDetail(r) : vPreviewList(r); },
     recite: vRecite, setup: vSetup, quiz: vQuiz, result: vResult, chat: vChat, wrongbook: vWrongbook, parent: vParent,
     essay: function (r) { r.a ? (r.b ? vEssayUnit(r) : vEssayLevel(r)) : vEssayHome(); },
     bf: function (r) { if (!r.a) vBfHome(); else if (r.a === 'methods') vBfMethods(); else vBfSet(r); },
-    amc: function (r) { r.a ? vAmcLevel(r) : vAmcHome(); }
+    amc: function (r) { r.a ? vAmcLevel(r) : vAmcHome(); },
+    map: function (r) {
+      if (r.a === 'practice' && r.b) vMapSet(r.b);
+      else if (r.a === 'skills') vMapSkills();
+      else if (r.a === 'words') vMapWords();
+      else if (r.a === 'practice') vMapPractice();
+      else vMapHome();
+    }
   };
 
   function bindGo() {

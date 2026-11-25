@@ -111,6 +111,35 @@ window.MT = window.MT || {};
       return true;
     },
 
+    /* MAP Reading 板块（MT-MAP-01）：与判分链物理隔离——practice 只记完成足迹、words 只记翻过卡，零对错字段 */
+    mapDoneGet: function () { return loadState().mapDone || {}; },     /* { qid: {at} } 点过 Check myself 的练习题 */
+    mapDoneSet: function (qid) {
+      var s = loadState();
+      s.mapDone = s.mapDone || {};
+      if (s.mapDone[qid]) return false;
+      s.mapDone[qid] = { at: new Date().toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) };
+      saveState(s);
+      return true;
+    },
+    mapWordsGet: function () { return loadState().mapWords || {}; },   /* { wordId: {at} } 翻到过反面的词卡 */
+    mapWordsFlip: function (wid) {
+      var s = loadState();
+      s.mapWords = s.mapWords || {};
+      if (s.mapWords[wid]) return false;
+      s.mapWords[wid] = { at: new Date().toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) };
+      saveState(s);
+      return true;
+    },
+    mapSkillsGet: function () { return loadState().mapSkills || {}; }, /* { skillId: {at} } 打开过的技巧卡 */
+    mapSkillsOpen: function (sid) {
+      var s = loadState();
+      s.mapSkills = s.mapSkills || {};
+      if (s.mapSkills[sid]) return false;
+      s.mapSkills[sid] = { at: new Date().toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) };
+      saveState(s);
+      return true;
+    },
+
     reset: function () {
       try { localStorage.removeItem(KEY); } catch (e) { }
     },
