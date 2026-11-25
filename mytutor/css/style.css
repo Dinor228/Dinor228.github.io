@@ -398,3 +398,129 @@ textarea.type-input { font-family: inherit; resize: vertical; }
 .w-rubric ul { margin: 6px 0 0 20px; padding: 0; }
 .w-rubric li { margin: 2px 0; }
 .w-over-txt { color: #b91c1c; font-weight: 700; }
+
+/* ============ MT-UX-LANDSCAPE-01 批次一：横屏自适应（家长/iPad 双横屏令 11-25） ============
+ * 口径：≥1000px 放宽容器/双栏/网格；≤480px 竖屏零回归（全部规则只在宽屏媒体查询内生效）。
+ * 阅读栏宽用 ch 控制 45–75 字符/行，禁拉满；触控目标 ≥44px、正文 ≥18px（7 岁 iPad）。 */
+@media (min-width: 1000px) {
+  #app { max-width: min(1200px, 92vw); padding: 20px 16px 120px; }
+
+  /* ② MAP practice 左文右题：一屏见文＋题，右栏独立滚动 */
+  .map-cols { display: flex; gap: 24px; align-items: flex-start; }
+  .map-passage { flex: 0 1 55%; max-width: 62ch; overflow-y: auto; max-height: calc(100vh - 230px);
+    position: sticky; top: 12px; font-size: 18px !important; line-height: 1.7; }
+  .map-qcol { flex: 1 1 45%; min-width: 0; }
+
+  /* ③ skills 卡横屏双列（集合页不再一列捅到底） */
+  .map-skillgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  .map-skillgrid > .card { margin-top: 0; }
+
+  /* ③ words 三列网格（覆盖内联 50%） */
+  .map-wordgrid > .map-word { width: calc(33.33% - 8px) !important; min-height: 110px; }
+
+  /* ④ 触控友好 */
+  .map-opt, .skill-opt { min-height: 44px; font-size: 18px; }
+  .btn { min-height: 44px; }
+  #map-sub, #map-reveal, #map-next { min-height: 48px; }
+
+  /* ⑤ AMC 等题图宽屏限栏宽防撑爆 */
+  img { max-width: min(100%, 70ch); }
+}
+
+/* skills 集合页：含步骤列表的卡外壳横屏双列（:has 命中 vMapSkills 外壳，零 JS 触点；
+ * 不支持 :has 的老浏览器＝单列降级，零伤害） */
+@media (min-width: 1000px) {
+  .view .card:has(> .card ol) { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  .view .card:has(> .card ol) > .card { margin-top: 0; }
+}
+
+/* MT-UX-LANDSCAPE-01 裁②：矮横屏（家长 iPad 1180×820/1024×768）一屏见文＋题——
+ * 只砍装饰性留白与选项排布，不砍文章内容（Chief 11-25 令）。 */
+@media (min-width: 1000px) and (max-height: 860px) {
+  #app { padding-bottom: 96px; }
+  .card { padding: 12px 16px; }
+  .view .card { margin-bottom: 10px; }
+  .card h2 { margin: 2px 0 6px; font-size: 22px; }
+  .crumb { margin-bottom: 0; }
+  .map-passage { padding: 10px 12px !important; max-height: calc(100vh - 210px); }
+  /* 选项 2×2 网格（≥44px 触控保持；长选项自行占满行） */
+  #map-body .row:has(> .map-opt) { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #map-body .row:has(> .map-opt) > .map-opt { margin: 0 !important; }
+  #map-extra .row { margin-top: 6px; }
+  .map-cols { gap: 16px; }
+}
+
+/* 同批追加：题栏行距/外边距再收（触控 ≥44 与字号 ≥18 红线不动） */
+@media (min-width: 1000px) and (max-height: 860px) {
+  #map-body { margin-top: 4px !important; }
+  #map-body > .muted { margin: 0; font-size: 14px; }
+  #map-body p { margin: 4px 0 6px; }
+  .map-qcol .btn { padding: 10px 12px; }
+  .view .card:has(> .card ol) { gap: 10px; }
+}
+
+/* 退回轮1修（QA 取证 11-25）：words 网格轨道 auto-fit 拉伸填满，死轨清零 */
+@media (min-width: 1000px) {
+  .map-wordgrid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 8px; }
+  .map-wordgrid > .map-word { width: auto !important; margin: 0 !important; }
+}
+
+/* ===== MT-UX-LANDSCAPE-02 批次二：AMC（定版①） ===== */
+@media (min-width: 1000px) {
+  /* 有图题：图左题右（:has 零 JS 触点；老浏览器单列降级） */
+  /* 有图题：图左题右双栏（.amc-fig/.amc-txt 显式栏，11-25 定版①） */
+  #amc-body:has(.amc-fig) { display: grid; grid-template-columns: 55fr 45fr; gap: 20px; align-items: start; }
+  #amc-body:has(.amc-fig) > .muted { grid-column: 1 / -1; }
+  #amc-body:has(.amc-fig) .amc-fig img { max-height: calc(100vh - 320px); object-fit: contain; }
+  #amc-body:has(.amc-fig) .amc-txt { min-width: 0; }
+  /* 无图题：五选 2 列网格（触控 ≥44 由 .btn 保底） */
+  #amc-body > div:has(> [data-opt]) { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #amc-body > div:has(> [data-opt]) > [data-opt] { width: auto !important; margin: 0 !important; min-height: 48px; }
+  /* 段位选择页：四档卡 2 列 */
+  .view > .card > .row:has(> [data-go^="#/amc/"]) { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* 点评卡全宽（提交后不改版式，防碎列） */
+  #amc-extra { width: 100%; }
+}
+
+/* ===== MT-UX-LANDSCAPE-02 批次二：数学/语文/Essay/入口（定版②③④） ===== */
+@media (min-width: 1000px) {
+  /* ② 练习选项：auto-fit 网格（口算短数字自动多列，长句自动单列不碎裂；按钮外观零动） */
+  .opt-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .opt-list .opt-btn { min-height: 44px; } /* QA-02 41px 红修复：触控下限（护栏内，竖屏零碰） */
+  .eq-opt { min-height: 44px; }
+  /* ③ Essay：左＝例文+引导（含提纲清单），右＝词测+过关；写作区在左栏 ≥60% 宽；点评卡(#ew-ai)随左栏自然全宽 */
+  .subj-essay { display: grid; grid-template-columns: 60fr 40fr; gap: 14px; align-items: start; }
+  .subj-essay > .crumb { grid-column: 1 / -1; }
+  .subj-essay > .card:nth-of-type(1) { grid-column: 1 / -1; }
+  .subj-essay > .card:nth-of-type(2) { grid-column: 1 / -1; } /* Step1 例文＝阅读主体整行 */
+  .subj-essay > .card:nth-of-type(3) { grid-column: 2; grid-row: 3; } /* Step2 词测右列 */
+  .subj-essay > .card:nth-of-type(4) { grid-column: 1 / -1; grid-row: 3; } /* Step3 整行：内部提纲|草稿 62% 栏 */
+  .subj-essay > .card:nth-of-type(5) { grid-column: 2; grid-row: 4; } /* Step4 过关右列 */
+  .subj-essay .opt-list { grid-template-columns: 1fr; }
+  /* QA-02 V-I1：Step3 引导写作卡内＝提纲清单左＋草稿区右（Chief 定版③；textarea ≥0.6×容器） */
+  .subj-essay .card:has(> div > #ew-in) { display: grid; grid-template-columns: minmax(180px,34fr) 66fr; gap: 4px 8px; align-items: start; }
+  .subj-essay .card:has(> div > #ew-in) > h3, .subj-essay .card:has(> div > #ew-in) > p { grid-column: 1 / -1; }
+  .subj-essay .card:has(> div > #ew-in) > ul { grid-column: 1; grid-row: 2; }
+  .subj-essay .card:has(> div > #ew-in) > div.field { grid-column: 2; grid-row: 2 / 4; }
+  /* ④ 首页科目卡 / Essay 选级 / 家长区卡：横屏 2 列 */
+  .subj-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .view.parent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .view.parent-grid > .view-title { grid-column: 1 / -1; grid-row: 1; }
+  .view.parent-grid > div.card:nth-of-type(1) { grid-column: 1 / -1; grid-row: 2; }
+  .view.parent-grid > div.card:nth-of-type(2) { grid-column: 1; grid-row: 3; }
+  .view.parent-grid > div.card:nth-of-type(3) { grid-column: 2; grid-row: 3; }
+  .view.parent-grid > div.card:nth-of-type(4) { grid-column: 1; grid-row: 4; }
+  .view > .card:has(> button.subj-card) { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .view > .card:has(> button.subj-card) > button.subj-card { width: auto !important; display: block !important; margin: 0 !important; text-align: left; grid-column: auto; }
+  .view > .card:has(> button.subj-card) > :not(button) { grid-column: 1 / -1; }
+  /* QA-02 红单补修 v2（11-25）：段位页＝一按钮一 .row 同挂 .card → 网格挂在 .card 层 */
+  .view .card:has(> .row > button[data-go^="#/amc/"]) { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; align-items: start; }
+  .view .card:has(> .row > button[data-go^="#/amc/"]) > p { grid-column: 1 / -1; }
+  .view .card:has(> .row > button[data-go^="#/amc/"]) > .row { display: block; margin: 0; }
+  .view .card:has(> .row > button[data-go^="#/amc/"]) > .row > button { width: 100%; min-height: 52px; }
+  /* 🔊 朗读钮 41px→44 下限 */
+  .say-btn { min-width: 44px; min-height: 44px; }
+  /* fill/口算直挂题面：卡片化承载（载体下沉到 0.88× 且填充达标；1440 滚动回归锁同步验） */
+  .view > .q-text { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 16px 20px; margin: 10px 0; max-width: 860px; }
+}

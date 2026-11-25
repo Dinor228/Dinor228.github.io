@@ -469,6 +469,9 @@ window.MT = window.MT || {};
 
   function mount(html, subj) {
     var cls = 'view' + (subj ? ' subj-' + subj : '');
+    /* MT-UX-LANDSCAPE-02 定版④：家长区路由统一挂网格类（mount 收口，两态必挂——
+       QA-02 V-G6 教训：挂点埋解锁分支里，二次进入/竞态走别的路径就不生效） */
+    if (location.hash.indexOf('#/parent') === 0 && window.innerWidth >= 1000) cls += ' parent-grid';
     app.innerHTML = '<div class="' + cls + '">' + html + '</div>';
   }
 
@@ -2654,10 +2657,11 @@ window.MT = window.MT || {};
     var body = qs('#amc-body'); if (!body || !amcQ) return;
     var q = amcQ.qs[amcQ.idx];
     amcQ.picked = null;
-    var img = (q.img && q.img.length) ? q.img.map(function (p) { return '<img src="' + esc(p) + '" alt="question figure" style="max-width:100%;border-radius:10px;margin:6px 0">'; }).join('') : '';
+    var img = (q.img && q.img.length) ? '<div class="amc-fig">' + q.img.map(function (p) { return '<img src="' + esc(p) + '" alt="question figure" style="max-width:100%;border-radius:10px;margin:6px 0">'; }).join('') + '</div>' : '';
     body.innerHTML = '<div class="muted">Question ' + (amcQ.idx + 1) + ' of ' + amcQ.qs.length + '</div>' +
-      '<div class="q-text" style="font-size:22px;margin:10px 0">' + esc(q.en) + '</div>' +
-      '<p class="muted" style="margin:2px 0 8px">' + esc(q.zh) + '</p>' + img;
+      img +
+      '<div class="amc-txt"><div class="q-text" style="font-size:22px;margin:10px 0">' + esc(q.en) + '</div>' +
+      '<p class="muted" style="margin:2px 0 8px">' + esc(q.zh) + '</p></div>';
     if (q.options) {                                    /* 五选一 */
       var opts = document.createElement('div');
       'ABCDE'.split('').forEach(function (L) {
@@ -2853,7 +2857,7 @@ window.MT = window.MT || {};
     var html = '<div class="card">' + crumbs(['#/map', 'MAP Reading']) + '<h2>🔤 Word Cards</h2>' +
       '<p class="muted">Tap a card to flip it. Words grow in with every reading review.</p>' + mapTabsHtml('words');
     if (!list.length) { html += '<p class="muted">No words yet — they grow in with each reading review.</p></div>'; mount(html); bindGo(); return; }
-    html += '<div class="row" style="flex-wrap:wrap">';
+    html += '<div class="row map-wordgrid" style="flex-wrap:wrap">';
     list.forEach(function (w) {
       html += '<div class="map-word" data-wid="' + esc(w.id) + '" style="width:calc(50% - 8px);margin:4px;min-height:96px;border:1px solid #d7e8e0;border-radius:12px;padding:10px;cursor:pointer;background:#fff">' +
         '<div style="font-size:19px"><b>' + esc(w.word) + '</b>' + mapBadge(w.source) + ' <span class="muted">' + esc(w.phonetic || '') + '</span></div>' +
@@ -2901,8 +2905,9 @@ window.MT = window.MT || {};
     var html = '<div class="card">' + crumbs(['#/map/practice', 'Sets']) +
       '<div style="display:flex;justify-content:space-between;align-items:center"><h2>' + esc(g.title) + mapBadge(g.source) + '</h2>' +
       '<button class="btn btn-ghost btn-sm" data-go="#/map/practice">Sets</button></div>' +
-      (g.passage ? '<div style="background:#f6f9f7;border-radius:10px;padding:12px;font-size:17px;line-height:1.7;white-space:pre-wrap">' + esc(g.passage) + '</div>' : '') +
-      '<div id="map-body" style="margin-top:10px"></div></div>';
+      '<div class="map-cols">' +
+      (g.passage ? '<div class="map-passage" style="background:#f6f9f7;border-radius:10px;padding:12px;white-space:pre-wrap">' + esc(g.passage) + '</div>' : '') +
+      '<div id="map-body" class="map-qcol" style="margin-top:10px"></div></div>';
     mount(html); bindGo();
     mapRenderQ();
   }
