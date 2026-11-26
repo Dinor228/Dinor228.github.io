@@ -2413,10 +2413,16 @@ window.MT = window.MT || {};
       essayText = ta.value.trim();
       var out = qs('#ew-ai');
       out.textContent = 'Reviewing your writing…';
+      /* MT-ESSAY-AI-03：8s 处加一行进度提示（仅转圈仍在时改文案，结果先到则不动）；
+       * 句首保留 Reviewing＝"仍在审"态词，与 QA 探针悬挂判据（/Reviewing/ 视为未完）语义对齐 */
+      var slowT = setTimeout(function () {
+        if (/Reviewing/.test(out.textContent || '')) out.textContent = 'Reviewing your writing — taking a little longer, one more moment…';
+      }, 8000);
       var ask = 'Please review this Grade ' + (lv === 'L1' ? '2' : '4') + ' student essay paragraph. ' +
         'Task: ' + ((unit.guided && unit.guided.prompt) || '') + ' ' +
         'Score each checklist item with ✓ or ✗ plus one short English sentence. End with ONE top improvement tip. English only.\n\nStudent writing:\n' + essayText;
       tutorChat(ask, aiState && aiState.ai, { max_tokens: 1200, lang: 'en', fresh: true }).then(function (res) {
+        clearTimeout(slowT);
         if (!res || res.src !== 'ai') {
           aiStateLabel = 'offline';
           out.innerHTML = '<div class="card" style="box-shadow:none;background:#f3f3f3">🤖 AI review is unavailable right now — please self-check with the checklist above, tick each item you did, and ask a grown-up to read it too.</div>';
@@ -2426,6 +2432,7 @@ window.MT = window.MT || {};
         }
         renderPass();
       }).catch(function () {
+        clearTimeout(slowT);
         aiStateLabel = 'offline';
         out.innerHTML = '<div class="card" style="box-shadow:none;background:#f3f3f3">🤖 AI review is unavailable right now — please self-check with the checklist above.</div>';
         renderPass();

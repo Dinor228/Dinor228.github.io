@@ -161,9 +161,9 @@ window.MT = window.MT || {};
         messages = (opts && opts.fresh)
           ? messages.concat([{ role: 'user', content: String(userText || '') }])
           : messages.concat(history.slice(-12));
-        /* 本地推理（DGX）可能耗时较长：95s 超时兜底，超时即回落离线规则 */
+        /* 本地推理（DGX）实测 3~4s；僵死兜底 95s→24s（MT-ESSAY-AI-03：孩子面前转圈上限 ≤25s），超时即回落离线规则 */
         var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 95000) : null;
+        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 24000) : null;
         var resp;
         try {
           var payload = { messages: messages };
